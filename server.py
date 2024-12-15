@@ -1,4 +1,3 @@
-# server.py
 import socket
 import threading
 
@@ -16,9 +15,8 @@ class ChatServer:
             for client, username in self.clients.items():
                 if client != sender:
                     try:
-                        client.sendall(message)
-                    except Exception as e:
-                        print(f"Error sending message: {e}")
+                        client.sendall(message.encode('utf-8'))
+                    except:
                         client.close()
                         del self.clients[client]
 
@@ -30,13 +28,13 @@ class ChatServer:
 
         try:
             while True:
-                message = client_socket.recv(1024)
+                message = client_socket.recv(1024).decode('utf-8')
                 if not message:
                     break
-                print(f"{username}: {message.decode('utf-8')}")
-                self.broadcast(message, client_socket)
-        except Exception as e:
-            print(f"Error: {e}")
+                print(f"{username}: {message}")
+                self.broadcast(f"{username}: {message}", client_socket)
+        except:
+            pass
         finally:
             with self.lock:
                 print(f"{username} left the chat.")
@@ -48,6 +46,7 @@ class ChatServer:
             client_socket, addr = self.server_socket.accept()
             print(f"New connection from {addr}")
             threading.Thread(target=self.handle_client, args=(client_socket,)).start()
+
 
 if __name__ == "__main__":
     server = ChatServer()
