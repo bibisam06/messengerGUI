@@ -2,7 +2,7 @@ import socket
 import threading
 import tkinter as tk
 from tkinter import scrolledtext, messagebox
-import tkinter.simpledialog
+from tkinter import simpledialog
 
 class ChatClient:
     def __init__(self, master):
