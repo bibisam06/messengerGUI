@@ -1,7 +1,7 @@
 import socket
 from threading import Thread
 import tkinter as tk
-from tkinter import scrolledtext
+from tkinter import scrolledtext, Listbox
 
 class ChatServer:
     def __init__(self, root):
@@ -9,9 +9,12 @@ class ChatServer:
         self.root.title("Chat Server")
         
         # GUI 요소
-        self.log_window = scrolledtext.ScrolledText(self.root, wrap=tk.WORD, state='disabled', height=20)
+        self.log_window = scrolledtext.ScrolledText(self.root, wrap=tk.WORD, state='disabled', height=15)
         self.log_window.pack(padx=10, pady=10, fill=tk.BOTH, expand=True)
         
+        self.user_listbox = Listbox(self.root, height=10)
+        self.user_listbox.pack(padx=10, pady=10, fill=tk.BOTH)
+
         self.start_button = tk.Button(self.root, text="Start Server", command=self.start_server)
         self.start_button.pack(padx=10, pady=10)
 
@@ -22,7 +25,7 @@ class ChatServer:
         self.HOST = socket.gethostbyname(socket.gethostname())
         self.PORT = 9999
         self.server_socket = None
-        self.client_sockets = []
+        self.client_sockets = {}
         self.is_running = False
 
     def log_message(self, message):
@@ -30,6 +33,19 @@ class ChatServer:
         self.log_window.insert(tk.END, message + "\n")
         self.log_window.config(state='disabled')
         self.log_window.yview(tk.END)
+
+    def update_user_listbox(self):
+        self.user_listbox.delete(0, tk.END)
+        for username in self.client_sockets.values():
+            self.user_listbox.insert(tk.END, username)
+
+    def send_user_list(self, client_socket):
+        """현재 접속자 리스트를 특정 클라이언트로 전송."""
+        user_list = ",".join(self.client_sockets.values())
+        try:
+            client_socket.sendall(f"USER_LIST:{user_list}".encode('utf-8'))
+        except Exception as e:
+            self.log_message(f"Failed to send user list: {e}")
 
     def start_server(self):
         self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -51,8 +67,13 @@ class ChatServer:
         while self.is_running:
             try:
                 client_socket, addr = self.server_socket.accept()
-                self.client_sockets.append(client_socket)
-                self.log_message(f"Client connected: {addr}")
+                username = client_socket.recv(1024).decode('utf-8')
+                self.client_sockets[client_socket] = username
+                self.log_message(f"Client connected: {username} ({addr})")
+                self.update_user_listbox()
+
+                # 접속한 클라이언트에게 유저 리스트 전송
+                self.send_user_list(client_socket)
 
                 # 클라이언트 처리 스레드 시작
                 Thread(target=self.handle_client, args=(client_socket, addr), daemon=True).start()
@@ -60,32 +81,40 @@ class ChatServer:
                 break
 
     def handle_client(self, client_socket, addr):
+        username = self.client_sockets[client_socket]
         while True:
             try:
                 data = client_socket.recv(1024)
                 if not data:
                     break
 
-                message = f"[{addr}] {data.decode()}"
-                self.log_message(message)
+                decoded_message = data.decode('utf-8')
 
-                # 다른 클라이언트에게 메시지 브로드캐스트
-                for client in self.client_sockets:
-                    if client != client_socket:
-                        client.send(data)
+                # 새로고침 요청 처리
+                if decoded_message == "REFRESH":
+                    self.log_message(f"{username} requested user list refresh.")
+                    self.send_user_list(client_socket)
+                else:
+                    # 일반 메시지 브로드캐스트
+                    message = f"[{username}] {decoded_message}"
+                    self.log_message(message)
+                    for client in self.client_sockets:
+                        if client != client_socket:
+                            client.send(message.encode('utf-8'))
             except:
                 break
 
-        self.client_sockets.remove(client_socket)
+        del self.client_sockets[client_socket]
         client_socket.close()
-        self.log_message(f"Client disconnected: {addr}")
+        self.log_message(f"Client disconnected: {username} ({addr})")
+        self.update_user_listbox()
 
     def stop_server(self):
         self.is_running = False
         self.start_button.config(state='normal')
         self.stop_button.config(state='disabled')
 
-        for client_socket in self.client_sockets:
+        for client_socket in list(self.client_sockets.keys()):
             client_socket.close()
         self.client_sockets.clear()
 
@@ -94,6 +123,7 @@ class ChatServer:
             self.server_socket = None
 
         self.log_message("Server stopped.")
+        self.update_user_listbox()
 
 # 실행
 if __name__ == "__main__":
