@@ -36,7 +36,8 @@ class ChatClient:
 
         try:
             self.client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            self.client_socket.connect(("127.0.0.1", 12345))
+            self.client_socket.connect(("127.0.0.1", 9999))
+
             self.client_socket.sendall(self.username.encode('utf-8'))
             threading.Thread(target=self.receive_messages, daemon=True).start()
             messagebox.showinfo("Connected", "Successfully connected to the server.")
