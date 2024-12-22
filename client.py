@@ -2,6 +2,8 @@ import socket
 import threading
 import tkinter as tk
 from tkinter import scrolledtext, messagebox
+from tkinter import simpledialog
+
 
 class ChatClient:
     def __init__(self, master):
@@ -58,6 +60,7 @@ class ChatClient:
             return
         try:
             self.client_socket.sendall(message.encode('utf-8'))
+            self.display_message(f"{self.username}: {message}")
             self.message_entry.delete(0, tk.END)
         except Exception as e:
             messagebox.showerror("Error", f"Failed to send message: {e}")
